@@ -1,518 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlcoCare - お酒と健康の記録</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 10px;
+        }
+        /* Tailwind doesn't handle all animations by default in CDN without config */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0",
+    "recharts": "https://esm.sh/recharts@2.13.3",
+    "@google/genai": "https://esm.sh/@google/genai@0.21.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { GoogleGenAI, Type } from '@google/genai';
-import { Plus, History, Activity, Settings, RefreshCw, AlertCircle, Info, Camera, Image as ImageIcon, X, Check, User } from 'lucide-react';
-import { Drink, UserProfile, Gender, HealthStats, AICharacter } from './types';
-import { DRINK_PRESETS, CHARACTERS } from './constants';
-import { calculateCurrentStats, calculateAlcoholGrams } from './utils/calculators';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+    <script type="module">
+        import React, { useState, useEffect, useMemo, useRef } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import { 
+            Plus, History, Activity, Settings, RefreshCw, AlertCircle, 
+            Info, Camera, X, User 
+        } from 'lucide-react';
+        import { 
+            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+        } from 'recharts';
+        import { GoogleGenAI, Type } from '@google/genai';
 
-const App: React.FC = () => {
-  const [profile, setProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('alco_profile');
-    return saved ? JSON.parse(saved) : { weight: 70, gender: Gender.MALE, character: AICharacter.DOCTOR };
-  });
-  
-  const [drinks, setDrinks] = useState<Drink[]>(() => {
-    const saved = localStorage.getItem('alco_drinks');
-    return saved ? JSON.parse(saved) : [];
-  });
+        // --- Types & Enums ---
+        const Gender = { MALE: 'MALE', FEMALE: 'FEMALE' };
+        const AICharacter = { DOCTOR: 'DOCTOR', MAMA: 'MAMA', BUTLER: 'BUTLER' };
 
-  const [aiResponse, setAiResponse] = useState<string>("");
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [isPhotoAnalyzing, setIsPhotoAnalyzing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showLogModal, setShowLogModal] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
+        // --- Constants ---
+        const DRINK_PRESETS = [
+            { name: 'ビール (350ml)', abv: 5, volume: 350 },
+            { name: 'ビール (500ml)', abv: 5, volume: 500 },
+            { name: 'ストロング缶 (350ml)', abv: 9, volume: 350 },
+            { name: 'ハイボール (グラス)', abv: 7, volume: 200 },
+            { name: 'レモンサワー (グラス)', abv: 5, volume: 200 },
+            { name: '日本酒 (1合)', abv: 15, volume: 180 },
+            { name: 'ワイン (グラス)', abv: 12, volume: 125 },
+            { name: '焼酎 (グラス)', abv: 25, volume: 100 },
+            { name: 'ウイスキー (シングル)', abv: 40, volume: 30 },
+        ];
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    localStorage.setItem('alco_profile', JSON.stringify(profile));
-  }, [profile]);
-
-  useEffect(() => {
-    localStorage.setItem('alco_drinks', JSON.stringify(drinks));
-  }, [drinks]);
-
-  const stats = useMemo(() => calculateCurrentStats(drinks, profile), [drinks, profile]);
-
-  const addDrink = (drinkData: { name: string; abv: number; volume: number }) => {
-    const newDrink: Drink = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: drinkData.name,
-      abv: drinkData.abv,
-      volume: drinkData.volume,
-      timestamp: Date.now()
-    };
-    setDrinks([newDrink, ...drinks]);
-    setShowLogModal(false);
-  };
-
-  const clearHistory = () => {
-    if (confirm('記録をすべて削除しますか？')) {
-      setDrinks([]);
-      setAiResponse("");
-    }
-  };
-
-  const analyzePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsPhotoAnalyzing(true);
-    setAnalysisError(null);
-
-    try {
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const res = reader.result as string;
-          resolve(res.split(',')[1]);
+        const BAC_FACTORS = {
+            MALE: 0.68,
+            FEMALE: 0.55,
+            METABOLISM_RATE: 0.015,
         };
-        reader.readAsDataURL(file);
-      });
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: file.type,
-                  data: base64,
-                },
-              },
-              {
-                text: "このお酒の写真を解析して、種類（名前）、アルコール度数(ABV)、内容量(ml)を推定してください。回答は必ず以下のJSON形式のみで返してください： {\"name\": \"お酒の名前\", \"abv\": 5.0, \"volume\": 350}",
-              },
-            ],
-          },
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              abv: { type: Type.NUMBER },
-              volume: { type: Type.NUMBER },
+        const CHARACTERS = {
+            [AICharacter.DOCTOR]: {
+                name: '厳格な医者',
+                description: '医学的見地から厳しくチェックします',
+                instruction: 'あなたは肝臓内科医です。医学的見地からアルコール量を厳しくチェックし、過剰摂取には警告してください。語尾は「〜です」「〜なさい」。',
+                icon: '👨‍⚕️'
             },
-            required: ["name", "abv", "volume"],
-          },
-        },
-      });
+            [AICharacter.MAMA]: {
+                name: '銀座のママ',
+                description: '上品に労い、寄り添います',
+                instruction: 'あなたは銀座の高級バーのママです。上品に労いながら、お酒の種類を記録してください。語尾は「〜ね」「〜だわ」。',
+                icon: '👩‍💼'
+            },
+            [AICharacter.BUTLER]: {
+                name: '執事',
+                description: '健康と出費を丁寧に管理します',
+                instruction: 'あなたは忠実な執事です。旦那様の健康と出費を管理します。丁寧な口調でアルコール量と概算費用を報告してください。',
+                icon: '🤵'
+            }
+        };
 
-      const result = JSON.parse(response.text);
-      if (result.name && result.abv && result.volume) {
-        addDrink(result);
-      } else {
-        setAnalysisError("お酒を正しく判別できませんでした。");
-      }
-    } catch (error) {
-      console.error(error);
-      setAnalysisError("写真解析中にエラーが発生しました。");
-    } finally {
-      setIsPhotoAnalyzing(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
+        // --- Utilities ---
+        const calculateAlcoholGrams = (drink) => drink.volume * (drink.abv / 100) * 0.8;
 
-  const getAIAdvice = async () => {
-    if (drinks.length === 0) return;
-    setIsAiLoading(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const drinkSummary = drinks.slice(0, 5).map(d => `${d.name} (${d.abv}% ${d.volume}ml)`).join(', ');
-      
-      const charInfo = CHARACTERS[profile.character || AICharacter.DOCTOR];
-      
-      const prompt = `
-        ユーザープロファイル: 性別 ${profile.gender}, 体重 ${profile.weight}kg.
-        最近の飲酒記録: ${drinkSummary}.
-        現在の推定血中アルコール濃度: ${stats.bac}%.
-        推定脱酔時間: ${stats.soberInHours}時間後.
-        アルコール総量: ${stats.totalAlcoholGrams}g.
-        
-        このデータに基づき、アドバイスをください。
-        回答は、設定された人格（システムインストラクション）を忠実に守り、箇条書きを含めて読みやすく提示してください。
-      `;
+        const calculateCurrentStats = (drinks, profile) => {
+            const now = Date.now();
+            const genderFactor = profile.gender === Gender.MALE ? BAC_FACTORS.MALE : BAC_FACTORS.FEMALE;
+            let totalAlcoholGrams = 0;
+            let bac = 0;
+            let totalCalories = 0;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          systemInstruction: charInfo.instruction,
-        },
-      });
-      setAiResponse(response.text || "アドバイスを取得できませんでした。");
-    } catch (error) {
-      console.error(error);
-      setAiResponse("AI解析中にエラーが発生しました。");
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
+            drinks.forEach(drink => {
+                const alcoholGrams = calculateAlcoholGrams(drink);
+                totalAlcoholGrams += alcoholGrams;
+                totalCalories += (alcoholGrams * 7) + (drink.volume * 0.1);
+                const hoursSinceStart = (now - drink.timestamp) / (1000 * 60 * 60);
+                const initialBAC = (alcoholGrams / (profile.weight * 1000 * genderFactor)) * 100;
+                const currentBAC = Math.max(0, initialBAC - (BAC_FACTORS.METABOLISM_RATE * hoursSinceStart));
+                bac += currentBAC;
+            });
 
-  const chartData = useMemo(() => {
-    const days: { [key: string]: number } = {};
-    drinks.slice(0, 20).forEach(d => {
-      const date = new Date(d.timestamp).toLocaleDateString();
-      days[date] = (days[date] || 0) + (d.volume * (d.abv / 100) * 0.8);
-    });
-    return Object.entries(days).map(([name, amount]) => ({ name, amount })).reverse();
-  }, [drinks]);
+            return {
+                bac: Number(bac.toFixed(3)),
+                soberInHours: Number((bac / BAC_FACTORS.METABOLISM_RATE).toFixed(1)),
+                totalAlcoholGrams: Math.round(totalAlcoholGrams),
+                liverStress: totalAlcoholGrams > 40 ? 'High' : (totalAlcoholGrams > 20 ? 'Moderate' : 'Low'),
+                calories: Math.round(totalCalories)
+            };
+        };
 
-  const activeCharacter = CHARACTERS[profile.character || AICharacter.DOCTOR];
+        // --- Main App Component ---
+        const App = () => {
+            const [profile, setProfile] = useState(() => {
+                const saved = localStorage.getItem('alco_profile');
+                return saved ? JSON.parse(saved) : { weight: 70, gender: Gender.MALE, character: AICharacter.DOCTOR };
+            });
+            const [drinks, setDrinks] = useState(() => {
+                const saved = localStorage.getItem('alco_drinks');
+                return saved ? JSON.parse(saved) : [];
+            });
+            const [aiResponse, setAiResponse] = useState("");
+            const [isAiLoading, setIsAiLoading] = useState(false);
+            const [isPhotoAnalyzing, setIsPhotoAnalyzing] = useState(false);
+            const [showSettings, setShowSettings] = useState(false);
+            const [showLogModal, setShowLogModal] = useState(false);
+            const [analysisError, setAnalysisError] = useState(null);
+            const fileInputRef = useRef(null);
 
-  return (
-    <div className="min-h-screen pb-24 max-w-2xl mx-auto px-4 pt-6 bg-slate-950 text-slate-200">
-      {/* Header */}
-      <header className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-            AlcoCare
-          </h1>
-          <p className="text-slate-400 text-xs mt-1">あなたの健康な飲酒をサポート</p>
-        </div>
-        <button 
-          onClick={() => setShowSettings(!showSettings)}
-          className={`p-2 rounded-full transition ${showSettings ? 'bg-amber-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-        >
-          <Settings size={20} />
-        </button>
-      </header>
+            useEffect(() => localStorage.setItem('alco_profile', JSON.stringify(profile)), [profile]);
+            useEffect(() => localStorage.setItem('alco_drinks', JSON.stringify(drinks)), [drinks]);
 
-      {/* Settings Panel */}
-      {showSettings && (
-        <div className="mb-8 p-6 bg-slate-800/50 rounded-2xl border border-slate-700 animate-in fade-in slide-in-from-top-4 duration-300">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Info size={18} /> プロフィール設定
-          </h2>
-          <div className="space-y-6">
-            {/* Gender and Weight */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">性別</label>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setProfile({...profile, gender: Gender.MALE})}
-                    className={`flex-1 py-2 rounded-lg border text-sm transition ${profile.gender === Gender.MALE ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-600 text-slate-400'}`}
-                  >
-                    男性
-                  </button>
-                  <button 
-                    onClick={() => setProfile({...profile, gender: Gender.FEMALE})}
-                    className={`flex-1 py-2 rounded-lg border text-sm transition ${profile.gender === Gender.FEMALE ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-600 text-slate-400'}`}
-                  >
-                    女性
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">体重 (kg)</label>
-                <input 
-                  type="number" 
-                  value={profile.weight}
-                  onChange={(e) => setProfile({...profile, weight: Number(e.target.value)})}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-amber-500 text-white text-sm"
-                />
-              </div>
-            </div>
+            const stats = useMemo(() => calculateCurrentStats(drinks, profile), [drinks, profile]);
 
-            {/* Character Selection */}
-            <div>
-              <label className="block text-sm text-slate-400 mb-2 flex items-center gap-1">
-                <User size={14} /> AIキャラクター設定
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(CHARACTERS).map(([key, char]) => (
-                  <button
-                    key={key}
-                    onClick={() => setProfile({...profile, character: key as AICharacter})}
-                    className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition ${profile.character === key ? 'bg-amber-500/10 border-amber-500 text-amber-500 shadow-lg shadow-amber-500/10' : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'}`}
-                  >
-                    <span className="text-xl">{char.icon}</span>
-                    <span className="text-[10px] font-bold whitespace-nowrap">{char.name}</span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-slate-500 mt-2 text-center">
-                {CHARACTERS[profile.character || AICharacter.DOCTOR].description}
-              </p>
-            </div>
+            const addDrink = (drinkData) => {
+                setDrinks([{ id: Math.random().toString(36).substr(2, 9), ...drinkData, timestamp: Date.now() }, ...drinks]);
+                setShowLogModal(false);
+            };
 
-            <button 
-              onClick={clearHistory}
-              className="w-full py-2 text-red-400 text-xs hover:bg-red-400/10 rounded-lg transition"
-            >
-              全ての履歴を削除
-            </button>
-          </div>
-        </div>
-      )}
+            const analyzePhoto = async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setIsPhotoAnalyzing(true);
+                setAnalysisError(null);
+                try {
+                    const base64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result.split(',')[1]);
+                        reader.readAsDataURL(file);
+                    });
+                    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                    const response = await ai.models.generateContent({
+                        model: 'gemini-3-flash-preview',
+                        contents: [{ parts: [{ inlineData: { mimeType: file.type, data: base64 } }, { text: "このお酒の写真を解析して種類、ABV(%)、内容量(ml)をJSON形式で返してください： {\"name\": \"名前\", \"abv\": 5.0, \"volume\": 350}" }] }],
+                        config: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: Type.OBJECT,
+                                properties: { name: { type: Type.STRING }, abv: { type: Type.NUMBER }, volume: { type: Type.NUMBER } },
+                                required: ["name", "abv", "volume"]
+                            }
+                        }
+                    });
+                    const result = JSON.parse(response.text);
+                    addDrink(result);
+                } catch (error) {
+                    setAnalysisError("解析エラー。APIキーを確認してください。");
+                } finally {
+                    setIsPhotoAnalyzing(false);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                }
+            };
 
-      {/* Dashboard Stats */}
-      <section className="grid grid-cols-2 gap-4 mb-8">
-        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
-          <p className="text-xs text-slate-400 mb-1 flex items-center gap-1">
-            <Activity size={12} /> 推定BAC
-          </p>
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-bold text-amber-400">{stats.bac}</span>
-            <span className="text-sm text-slate-400">%</span>
-          </div>
-          <div className="mt-2 w-full bg-slate-700 rounded-full h-1.5">
-            <div 
-              className={`h-1.5 rounded-full transition-all duration-500 ${stats.bac > 0.15 ? 'bg-red-500' : stats.bac > 0.05 ? 'bg-orange-500' : 'bg-green-500'}`}
-              style={{ width: `${Math.min(100, stats.bac * 400)}%` }}
-            />
-          </div>
-        </div>
+            const getAIAdvice = async () => {
+                if (drinks.length === 0) return;
+                setIsAiLoading(true);
+                try {
+                    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                    const drinkSummary = drinks.slice(0, 5).map(d => `${d.name} (${d.abv}% ${d.volume}ml)`).join(', ');
+                    const charInfo = CHARACTERS[profile.character || AICharacter.DOCTOR];
+                    const response = await ai.models.generateContent({
+                        model: 'gemini-3-flash-preview',
+                        contents: `記録: ${drinkSummary}, BAC: ${stats.bac}%, 総量: ${stats.totalAlcoholGrams}g. これに基づき、設定された人格でアドバイスして。`,
+                        config: { systemInstruction: charInfo.instruction }
+                    });
+                    setAiResponse(response.text);
+                } catch (error) {
+                    setAiResponse("AI解析中にエラーが発生しました。");
+                } finally {
+                    setIsAiLoading(false);
+                }
+            };
 
-        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
-          <p className="text-xs text-slate-400 mb-1 flex items-center gap-1">
-            <RefreshCw size={12} /> 脱酔まで
-          </p>
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-bold text-blue-400">{stats.soberInHours}</span>
-            <span className="text-sm text-slate-400">時間</span>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-2">※代謝速度には個人差があります</p>
-        </div>
+            const chartData = useMemo(() => {
+                const days = {};
+                drinks.forEach(d => {
+                    const date = new Date(d.timestamp).toLocaleDateString();
+                    days[date] = (days[date] || 0) + calculateAlcoholGrams(d);
+                });
+                return Object.entries(days).map(([name, amount]) => ({ name, amount })).reverse().slice(0, 7);
+            }, [drinks]);
 
-        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
-          <p className="text-xs text-slate-400 mb-1">アルコール総量</p>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold text-slate-200">{stats.totalAlcoholGrams}</span>
-            <span className="text-sm text-slate-400">g</span>
-          </div>
-        </div>
+            const activeChar = CHARACTERS[profile.character || AICharacter.DOCTOR];
 
-        <div className="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl">
-          <p className="text-xs text-slate-400 mb-1">推定摂取カロリー</p>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold text-slate-200">{stats.calories}</span>
-            <span className="text-sm text-slate-400">kcal</span>
-          </div>
-        </div>
-      </section>
+            // Render helper (using standard React API for direct browser execution)
+            const el = React.createElement;
 
-      {/* Health Impact Indicator */}
-      {stats.bac > 0 && (
-        <section className={`mb-8 p-4 rounded-xl flex items-center gap-4 border border-slate-700 ${
-          stats.liverStress === 'High' ? 'bg-red-900/20 border-red-800/50 text-red-200' :
-          stats.liverStress === 'Moderate' ? 'bg-orange-900/20 border-orange-800/50 text-orange-200' :
-          'bg-green-900/20 border-green-800/50 text-green-200'
-        }`}>
-          <AlertCircle className="shrink-0" size={24} />
-          <div>
-            <h3 className="font-bold text-sm">現在の体への影響: {
-              stats.liverStress === 'High' ? '重度の負荷' :
-              stats.liverStress === 'Moderate' ? '中程度の負荷' : '軽微な負荷'
-            }</h3>
-            <p className="text-xs opacity-80 mt-1">
-              {stats.liverStress === 'High' ? 'これ以上の飲酒は控え、十分な水分と休息を。' :
-               stats.liverStress === 'Moderate' ? 'ゆっくりとしたペースで水分を摂りましょう。' :
-               '体への影響は少ないですが、油断は禁物です。'}
-            </p>
-          </div>
-        </section>
-      )}
+            return el('div', { className: "min-h-screen pb-24 max-w-2xl mx-auto px-4 pt-6 bg-slate-950 text-slate-200" },
+                el('header', { className: "flex justify-between items-center mb-8" },
+                    el('div', null,
+                        el('h1', { className: "text-2xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent" }, "AlcoCare"),
+                        el('p', { className: "text-slate-400 text-xs mt-1" }, "あなたの健康な飲酒をサポート")
+                    ),
+                    el('button', { onClick: () => setShowSettings(!showSettings), className: `p-2 rounded-full ${showSettings ? 'bg-amber-500 text-white' : 'bg-slate-800'}` }, el(Settings, { size: 20 }))
+                ),
 
-      {/* AI Advice */}
-      <section className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <Activity className="text-amber-500" /> AI健康アドバイス
-          </h2>
-          <button 
-            disabled={isAiLoading || drinks.length === 0}
-            onClick={getAIAdvice}
-            className="text-xs bg-amber-500 hover:bg-amber-600 disabled:bg-slate-700 text-white px-3 py-1.5 rounded-full font-medium transition flex items-center gap-1 shadow-lg shadow-amber-900/20"
-          >
-            {isAiLoading ? <RefreshCw size={14} className="animate-spin" /> : 'AIに聞く'}
-          </button>
-        </div>
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 min-h-[100px] flex flex-col relative overflow-hidden">
-          {/* Character Badge */}
-          <div className="bg-slate-800/80 px-4 py-2 flex items-center gap-2 border-b border-slate-800/50">
-            <span className="text-lg">{activeCharacter.icon}</span>
-            <span className="text-xs font-bold text-amber-500">{activeCharacter.name}</span>
-          </div>
+                showSettings && el('div', { className: "mb-8 p-6 bg-slate-800/50 rounded-2xl border border-slate-700 animate-fade-in" },
+                    el('h2', { className: "text-lg font-semibold mb-4 flex items-center gap-2" }, el(Info, { size: 18 }), "プロフィール設定"),
+                    el('div', { className: "space-y-6" },
+                        el('div', { className: "grid grid-cols-2 gap-4" },
+                            el('div', null,
+                                el('label', { className: "block text-sm text-slate-400 mb-2" }, "性別"),
+                                el('div', { className: "flex gap-2" },
+                                    el('button', { onClick: () => setProfile({...profile, gender: Gender.MALE}), className: `flex-1 py-2 rounded-lg border text-sm ${profile.gender === Gender.MALE ? 'bg-amber-500 border-amber-500' : 'border-slate-600 text-slate-400'}` }, "男性"),
+                                    el('button', { onClick: () => setProfile({...profile, gender: Gender.FEMALE}), className: `flex-1 py-2 rounded-lg border text-sm ${profile.gender === Gender.FEMALE ? 'bg-amber-500 border-amber-500' : 'border-slate-600 text-slate-400'}` }, "女性")
+                                )
+                            ),
+                            el('div', null,
+                                el('label', { className: "block text-sm text-slate-400 mb-2" }, "体重 (kg)"),
+                                el('input', { type: "number", value: profile.weight, onChange: (e) => setProfile({...profile, weight: Number(e.target.value)}), className: "w-full bg-slate-900 border border-slate-600 rounded-lg py-2 px-4 text-white text-sm focus:ring-2 focus:ring-amber-500 outline-none" })
+                            )
+                        ),
+                        el('div', null,
+                            el('label', { className: "block text-sm text-slate-400 mb-2 flex items-center gap-1" }, el(User, { size: 14 }), "AIキャラクター"),
+                            el('div', { className: "grid grid-cols-3 gap-2" },
+                                Object.entries(CHARACTERS).map(([key, char]) => el('button', { key, onClick: () => setProfile({...profile, character: key}), className: `p-3 rounded-xl border flex flex-col items-center gap-1 ${profile.character === key ? 'bg-amber-500/10 border-amber-500 text-amber-500' : 'border-slate-700 bg-slate-900 text-slate-400'}` },
+                                    el('span', { className: "text-xl" }, char.icon),
+                                    el('span', { className: "text-[10px] font-bold" }, char.name)
+                                ))
+                            )
+                        ),
+                        el('button', { onClick: () => { if(confirm('全て削除しますか？')) setDrinks([]); }, className: "w-full py-2 text-red-400 text-xs hover:bg-red-400/10 rounded-lg transition" }, "履歴を全て削除")
+                    )
+                ),
 
-          <div className="p-5 flex items-center justify-center min-h-[80px]">
-            {isAiLoading && (
-              <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-sm z-10">
-                <div className="text-center">
-                  <RefreshCw size={32} className="mx-auto mb-2 animate-spin text-amber-500" />
-                  <p className="text-xs text-slate-400">解析中...</p>
-                </div>
-              </div>
-            )}
-            {aiResponse ? (
-              <div className="text-sm leading-relaxed text-slate-300 whitespace-pre-wrap w-full animate-in fade-in duration-500">
-                {aiResponse}
-              </div>
-            ) : (
-              <p className="text-slate-500 text-sm text-center italic">
-                「AIに聞く」ボタンを押すと、{activeCharacter.name}からアドバイスが届きます。
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
+                el('section', { className: "grid grid-cols-2 gap-4 mb-8" },
+                    el('div', { className: "bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl" },
+                        el('p', { className: "text-xs text-slate-400 mb-1 flex items-center gap-1" }, el(Activity, { size: 12 }), "推定BAC"),
+                        el('div', { className: "flex items-baseline gap-1" }, el('span', { className: "text-3xl font-bold text-amber-400" }, stats.bac), el('span', { className: "text-sm text-slate-400" }, "%")),
+                        el('div', { className: "mt-2 w-full bg-slate-700 rounded-full h-1.5" }, el('div', { className: `h-1.5 rounded-full ${stats.bac > 0.15 ? 'bg-red-500' : stats.bac > 0.05 ? 'bg-orange-500' : 'bg-green-500'}`, style: { width: `${Math.min(100, stats.bac * 400)}%` } }))
+                    ),
+                    el('div', { className: "bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl" },
+                        el('p', { className: "text-xs text-slate-400 mb-1 flex items-center gap-1" }, el(RefreshCw, { size: 12 }), "脱酔まで"),
+                        el('div', { className: "flex items-baseline gap-1" }, el('span', { className: "text-3xl font-bold text-blue-400" }, stats.soberInHours), el('span', { className: "text-sm text-slate-400" }, "時間"))
+                    ),
+                    el('div', { className: "bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl" },
+                        el('p', { className: "text-xs text-slate-400 mb-1" }, "アルコール総量"),
+                        el('div', { className: "flex items-baseline gap-1" }, el('span', { className: "text-2xl font-bold text-slate-200" }, stats.totalAlcoholGrams), el('span', { className: "text-sm text-slate-400" }, "g"))
+                    ),
+                    el('div', { className: "bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-xl" },
+                        el('p', { className: "text-xs text-slate-400 mb-1" }, "推定カロリー"),
+                        el('div', { className: "flex items-baseline gap-1" }, el('span', { className: "text-2xl font-bold text-slate-200" }, stats.calories), el('span', { className: "text-sm text-slate-400" }, "kcal"))
+                    )
+                ),
 
-      {/* Trends Chart */}
-      {drinks.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <History className="text-blue-500" /> 飲酒トレンド (純アルコール量)
-          </h2>
-          <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '12px' }}
-                  itemStyle={{ color: '#fbbf24' }}
-                />
-                <Bar dataKey="amount" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
+                el('section', { className: "mb-8" },
+                    el('div', { className: "flex justify-between items-center mb-4" }, el('h2', { className: "text-lg font-bold flex items-center gap-2" }, el(Activity, { className: "text-amber-500" }), "AIアドバイス"), el('button', { disabled: isAiLoading || drinks.length === 0, onClick: getAIAdvice, className: "text-xs bg-amber-500 hover:bg-amber-600 disabled:bg-slate-700 text-white px-3 py-1.5 rounded-full font-medium transition" }, isAiLoading ? el(RefreshCw, { size: 14, className: "animate-spin" }) : 'AIに聞く')),
+                    el('div', { className: "bg-slate-900/80 rounded-2xl border border-slate-800 flex flex-col overflow-hidden" },
+                        el('div', { className: "bg-slate-800/80 px-4 py-2 flex items-center gap-2 border-b border-slate-800/50" }, el('span', { className: "text-lg" }, activeChar.icon), el('span', { className: "text-xs font-bold text-amber-500" }, activeChar.name)),
+                        el('div', { className: "p-5 min-h-[80px] flex items-center justify-center relative" }, isAiLoading && el('div', { className: "absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-sm" }, el(RefreshCw, { size: 32, className: "animate-spin text-amber-500" })), aiResponse ? el('div', { className: "text-sm leading-relaxed text-slate-300 whitespace-pre-wrap w-full" }, aiResponse) : el('p', { className: "text-slate-500 text-sm italic" }, `アドバイスをお待ちしています。`))
+                    )
+                ),
 
-      {/* Drink History List */}
-      <section className="mb-8">
-        <h2 className="text-lg font-bold mb-4">最近の履歴</h2>
-        <div className="space-y-3">
-          {drinks.length > 0 ? drinks.slice(0, 10).map((drink) => (
-            <div key={drink.id} className="bg-slate-800/40 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-              <div>
-                <p className="text-sm font-medium text-slate-200">{drink.name}</p>
-                <p className="text-[10px] text-slate-500">
-                  {new Date(drink.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-amber-500 font-bold">{Math.round(calculateAlcoholGrams(drink))}g Alc.</p>
-                <p className="text-[10px] text-slate-400">{drink.abv}% | {drink.volume}ml</p>
-              </div>
-            </div>
-          )) : (
-            <p className="text-slate-600 text-sm text-center py-8">まだ記録がありません</p>
-          )}
-        </div>
-      </section>
+                drinks.length > 0 && el('section', { className: "mb-8" },
+                    el('h2', { className: "text-lg font-bold mb-4 flex items-center gap-2" }, el(History, { className: "text-blue-500" }), "直近7日間のトレンド"),
+                    el('div', { className: "bg-slate-800 p-4 rounded-2xl border border-slate-700 h-48" }, el(ResponsiveContainer, { width: "100%", height: "100%" }, el(BarChart, { data: chartData }, el(CartesianGrid, { strokeDasharray: "3 3", stroke: "#334155", vertical: false }), el(XAxis, { dataKey: "name", stroke: "#94a3b8", fontSize: 10, tickLine: false, axisLine: false }), el(YAxis, { stroke: "#94a3b8", fontSize: 10, tickLine: false, axisLine: false }), el(Tooltip, { contentStyle: { backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: '12px' } }), el(Bar, { dataKey: "amount", fill: "#f59e0b", radius: [4, 4, 0, 0] }))))
+                ),
 
-      {/* Sticky Bottom Action */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pointer-events-none z-40">
-        <div className="max-w-2xl mx-auto flex justify-center gap-4 pointer-events-auto">
-          <button 
-            onClick={() => setShowLogModal(true)}
-            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-full shadow-2xl shadow-amber-500/30 flex items-center justify-center gap-2 transform active:scale-95 transition"
-          >
-            <Plus size={20} /> 追加
-          </button>
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isPhotoAnalyzing}
-            className="w-14 h-14 bg-slate-800 hover:bg-slate-700 text-amber-500 rounded-full shadow-2xl flex items-center justify-center transform active:scale-95 transition border border-slate-700"
-          >
-            {isPhotoAnalyzing ? <RefreshCw size={24} className="animate-spin" /> : <Camera size={24} />}
-          </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={analyzePhoto} 
-            accept="image/*" 
-            capture="environment" 
-            className="hidden" 
-          />
-        </div>
-      </div>
+                el('section', { className: "mb-8" },
+                    el('h2', { className: "text-lg font-bold mb-4" }, "履歴"),
+                    el('div', { className: "space-y-3" }, drinks.length > 0 ? drinks.slice(0, 5).map(d => el('div', { key: d.id, className: "bg-slate-800/40 p-3 rounded-xl border border-slate-800 flex justify-between items-center" }, el('div', null, el('p', { className: "text-sm font-medium" }, d.name), el('p', { className: "text-[10px] text-slate-500" }, new Date(d.timestamp).toLocaleTimeString())), el('div', { className: "text-right" }, el('p', { className: "text-xs text-amber-500 font-bold" }, `${Math.round(calculateAlcoholGrams(d))}g`), el('p', { className: "text-[10px] text-slate-400" }, `${d.abv}% | ${d.volume}ml`)))) : el('p', { className: "text-slate-600 text-sm text-center py-8" }, "まだ記録がありません"))
+                ),
 
-      {/* Log Modal */}
-      {showLogModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowLogModal(false)} />
-          <div className="relative bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-slate-700 p-6 animate-in slide-in-from-bottom duration-300">
-            <h2 className="text-xl font-bold mb-6 text-center text-white">飲み物を追加</h2>
-            
-            <div className="flex gap-4 mb-6">
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 p-6 rounded-2xl border border-slate-700 flex flex-col items-center gap-2 transition"
-              >
-                <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-500">
-                  <Camera size={24} />
-                </div>
-                <span className="text-xs font-bold">写真で追加</span>
-              </button>
-            </div>
+                el('div', { className: "fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent z-40" },
+                    el('div', { className: "max-w-2xl mx-auto flex justify-center gap-4 pointer-events-auto" },
+                        el('button', { onClick: () => setShowLogModal(true), className: "flex-1 bg-amber-500 text-white font-bold py-3 rounded-full shadow-2xl flex items-center justify-center gap-2 transform active:scale-95 transition" }, el(Plus, { size: 20 }), "追加"),
+                        el('button', { onClick: () => fileInputRef.current?.click(), disabled: isPhotoAnalyzing, className: "w-14 h-14 bg-slate-800 text-amber-500 rounded-full shadow-2xl flex items-center justify-center border border-slate-700" }, isPhotoAnalyzing ? el(RefreshCw, { size: 24, className: "animate-spin" }) : el(Camera, { size: 24 })),
+                        el('input', { type: "file", ref: fileInputRef, onChange: analyzePhoto, accept: "image/*", capture: "environment", className: "hidden" })
+                    )
+                ),
 
-            <div className="grid grid-cols-2 gap-3 mb-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-              {DRINK_PRESETS.map((preset, idx) => (
-                <button 
-                  key={idx}
-                  onClick={() => addDrink(preset)}
-                  className="bg-slate-800 hover:bg-slate-700 p-4 rounded-xl border border-slate-700 text-left transition active:scale-95"
-                >
-                  <p className="text-sm font-bold text-slate-200 mb-1">{preset.name}</p>
-                  <p className="text-xs text-slate-400">{preset.abv}% | {preset.volume}ml</p>
-                </button>
-              ))}
-            </div>
-            
-            <button 
-              onClick={() => setShowLogModal(false)}
-              className="w-full py-3 bg-slate-800 text-slate-400 rounded-xl font-medium hover:bg-slate-700 transition"
-            >
-              キャンセル
-            </button>
-          </div>
-        </div>
-      )}
+                showLogModal && el('div', { className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" },
+                    el('div', { className: "absolute inset-0 bg-black/60 backdrop-blur-sm", onClick: () => setShowLogModal(false) }),
+                    el('div', { className: "relative bg-slate-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-slate-700 p-6 animate-fade-in" },
+                        el('h2', { className: "text-xl font-bold mb-6 text-center" }, "飲み物を追加"),
+                        el('div', { className: "grid grid-cols-2 gap-3 mb-6 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar" },
+                            DRINK_PRESETS.map((p, idx) => el('button', { key: idx, onClick: () => addDrink(p), className: "bg-slate-800 p-4 rounded-xl border border-slate-700 text-left" }, el('p', { className: "text-sm font-bold" }, p.name), el('p', { className: "text-xs text-slate-400" }, `${p.abv}% | ${p.volume}ml`)))
+                        ),
+                        el('button', { onClick: () => setShowLogModal(false), className: "w-full py-3 bg-slate-800 text-slate-400 rounded-xl" }, "キャンセル")
+                    )
+                ),
 
-      {/* Analysis Loading Overlay */}
-      {isPhotoAnalyzing && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md">
-          <div className="text-center">
-            <div className="relative w-24 h-24 mx-auto mb-6">
-              <div className="absolute inset-0 rounded-full border-4 border-amber-500/20"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-amber-500 border-t-transparent animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center text-amber-500">
-                <Camera size={32} />
-              </div>
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">AI解析中...</h3>
-            <p className="text-slate-400 text-sm">写真をスキャンしてお酒を特定しています</p>
-          </div>
-        </div>
-      )}
+                analysisError && el('div', { className: "fixed top-6 left-4 right-4 z-[100] bg-red-500 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between" }, el('p', { className: "text-sm" }, analysisError), el('button', { onClick: () => setAnalysisError(null) }, el(X, { size: 16 })))
+            );
+        };
 
-      {/* Analysis Error Toast */}
-      {analysisError && (
-        <div className="fixed top-6 left-4 right-4 z-[100] animate-in slide-in-from-top-4 duration-300">
-          <div className="bg-red-500 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <AlertCircle size={20} />
-              <p className="text-sm font-medium">{analysisError}</p>
-            </div>
-            <button onClick={() => setAnalysisError(null)} className="p-1 hover:bg-white/20 rounded">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default App;
+        ReactDOM.createRoot(document.getElementById('root')).render(el(React.StrictMode, null, el(App)));
+    </script>
+</body>
+</html>
