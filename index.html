@@ -55,7 +55,6 @@
 </head>
 <body class="min-h-screen pb-12">
 
-    <!-- パスワード入力画面 -->
     <div id="password-screen" class="fixed inset-0 z-[300] bg-slate-950 flex flex-col items-center justify-center p-8 text-center">
         <div class="bg-blue-600/20 p-6 rounded-[40px] mb-8">
             <i data-lucide="lock" class="text-blue-400 w-12 h-12"></i>
@@ -70,7 +69,6 @@
         </div>
     </div>
 
-    <!-- エラー表示バナー -->
     <div id="error-display" class="hidden fixed top-0 left-0 right-0 z-[400] bg-rose-600 p-4 text-white text-center font-bold text-sm shadow-2xl flex items-center justify-center gap-2">
         <i data-lucide="alert-circle" class="w-4 h-4"></i>
         <span id="error-message"></span>
@@ -78,7 +76,6 @@
     </div>
 
     <div id="main-app" class="max-w-md mx-auto p-5 space-y-6 pt-10 hidden">
-        <!-- ヘッダー -->
         <header class="flex justify-between items-center">
             <div class="flex items-center gap-4">
                 <div class="bg-blue-600 p-3 rounded-2xl shadow-xl shadow-blue-500/20">
@@ -102,14 +99,12 @@
             </div>
         </header>
 
-        <!-- 結論バッジ -->
         <div id="conclusion-container" class="hidden animate-fade-in">
             <div id="status-badge" class="status-badge w-full py-4 px-6 rounded-3xl text-center font-black text-xl shadow-2xl">
                 状態：<span id="conclusion-text">解析中...</span>
             </div>
         </div>
 
-        <!-- メトリクス -->
         <section class="glass-card p-6 grid grid-cols-2 gap-4 relative overflow-hidden">
             <div class="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full"></div>
             <div class="col-span-2 flex justify-between items-center mb-2">
@@ -134,7 +129,6 @@
             </div>
         </section>
 
-        <!-- AIアドバイザー -->
         <section id="ai-section" class="hidden transition-all duration-500 transform scale-95 opacity-0">
             <div id="character-card" class="rounded-[40px] p-6 shadow-2xl relative overflow-hidden border border-white/10">
                 <div id="card-decor" class="absolute top-0 right-0 p-6 opacity-20 pointer-events-none"></div>
@@ -170,7 +164,6 @@
             </div>
         </section>
 
-        <!-- アクション -->
         <div class="grid grid-cols-2 gap-4">
             <button onclick="openManualInput()" class="glass-card p-6 flex flex-col gap-3 group active:scale-95 transition-all text-left">
                 <div class="bg-blue-500/10 w-12 h-12 rounded-2xl flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white">
@@ -191,17 +184,15 @@
             <i data-lucide="sparkles"></i> AIドクターに相談する
         </button>
 
-        <!-- 履歴 -->
         <section class="space-y-4 pt-4">
             <div class="flex justify-between items-center px-2">
                 <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Drinking Log History</h3>
-                <button onclick="clearLogs()" class="text-[10px] font-bold text-rose-500/50 hover:text-rose-500 transition-colors">RESET</button>
+                <button onclick="clearLogs()" class="text-[10px] font-bold text-rose-500/50 hover:text-rose-500 transition-colors">ALL RESET</button>
             </div>
             <div id="history-list" class="space-y-3"></div>
         </section>
     </div>
 
-    <!-- モーダル: 設定 -->
     <div id="modal-settings" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm transition-all opacity-0 pointer-events-none">
         <div class="bg-slate-900 w-full max-w-md rounded-[40px] p-8 border border-white/5 shadow-2xl space-y-8 transform scale-90 transition-transform">
             <div class="flex justify-between items-center">
@@ -223,7 +214,6 @@
         </div>
     </div>
 
-    <!-- モーダル: 飲み物選択 -->
     <div id="modal-drinks" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-all opacity-0 pointer-events-none">
         <div class="bg-slate-900 w-full max-w-md rounded-[40px] p-8 border border-white/5 shadow-2xl space-y-6 transform translate-y-20 transition-transform">
             <div class="flex justify-between items-center">
@@ -234,7 +224,6 @@
         </div>
     </div>
 
-    <!-- ローダー -->
     <div id="global-loader" class="fixed inset-0 z-[200] bg-slate-950/90 flex flex-col items-center justify-center p-8 transition-opacity opacity-0 pointer-events-none text-center">
         <div class="w-20 h-20 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-6"></div>
         <p class="text-white font-black text-xl animate-pulse">AIが解析中...</p>
@@ -242,7 +231,10 @@
     </div>
 
     <script type="module">
-        import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@1.41.0";
+        import { GoogleGenAI } from "https://esm.sh/@google/genai@1.41.0";
+
+        // ★★★ここにあなたのGemini APIキーを貼り付けてください★★★
+        const GEMINI_API_KEY = "ここにAPIキーを入れてください"; 
 
         const AUTH_PASS = "alco2026";
         const PRESETS = [
@@ -262,72 +254,63 @@
                 name: '厳格な医者', icon: '👨‍⚕️', title: 'Medical Expert',
                 decor: '<i data-lucide="heart-pulse" class="w-16 h-16 text-blue-200"></i>',
                 status_colors: { NORMAL: 'bg-emerald-500', CAUTION: 'bg-amber-500', DANGER: 'bg-rose-600' },
-                prompt: 'あなたは肝臓専門医です。ユーザーの飲酒データに基づき、医学的見地から非常に厳しく、冷静に診断してください。専門用語（アセトアルデヒド等）を使いつつ、簡潔な日本語で。'
+                prompt: 'あなたは肝臓専門医です。ユーザーの飲酒データに基づき、医学的見地から非常に厳しく診断してください。'
             },
             MAMA: {
                 name: '銀座のママ', icon: '👩‍💼', title: 'Elegant Hostess',
                 decor: '<i data-lucide="star" class="w-16 h-16 text-purple-200"></i>',
                 status_colors: { NORMAL: 'bg-pink-500', CAUTION: 'bg-fuchsia-600', DANGER: 'bg-purple-800' },
-                prompt: 'あなたは銀座の高級バーのママです。上品で優雅な口調で、ユーザーを労いつつも、飲みすぎには凛とした態度で注意してください。'
+                prompt: 'あなたは銀座のママです。上品に、でも飲みすぎには厳しく注意してください。'
             },
             BUTLER: {
                 name: '忠実な執事', icon: '🤵', title: 'Professional Butler',
                 decor: '<i data-lucide="clock" class="w-16 h-16 text-slate-300"></i>',
                 status_colors: { NORMAL: 'bg-slate-500', CAUTION: 'bg-indigo-600', DANGER: 'bg-slate-900' },
-                prompt: 'あなたは忠実な執事です。旦那様（ユーザー）の状態を冷静かつ客観的に分析し、非常に丁寧な言葉遣いで現在の状況とチェイサーの必要性を報告してください。'
+                prompt: 'あなたは忠実な執事です。旦那様を労いつつ、客観的な報告をしてください。'
             }
         };
 
-        // 状態
         let state = {
             drinks: JSON.parse(localStorage.getItem('alcare_logs_v3') || '[]'),
             profile: JSON.parse(localStorage.getItem('alcare_prof_v3') || '{"gender":"MALE","weight":70,"character":"DOCTOR"}'),
             authenticated: sessionStorage.getItem('alcare_auth') === 'true'
         };
 
-        // 初期化
         window.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             if (state.authenticated) showMainApp();
-            checkAPIKey();
+            checkAPIStatus();
             refreshUI();
-            initSettingsUI();
+            syncSettingsUI();
         });
 
-        // APIキーの確認
-        function checkAPIKey() {
+        function checkAPIStatus() {
             const dot = document.getElementById('api-status-dot');
-            if (process.env.API_KEY) {
+            if (GEMINI_API_KEY && GEMINI_API_KEY !== "ここにAPIキーを入れてください") {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]";
             } else {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
-                console.error("API Key is missing from process.env.API_KEY");
             }
         }
 
-        // 認証
         window.checkAuth = () => {
             const input = document.getElementById('auth-input').value;
-            const errorEl = document.getElementById('auth-error');
             if (input === AUTH_PASS) {
                 state.authenticated = true;
                 sessionStorage.setItem('alcare_auth', 'true');
                 showMainApp();
             } else {
-                errorEl.classList.remove('hidden');
-                setTimeout(() => errorEl.classList.add('hidden'), 3000);
+                document.getElementById('auth-error').classList.remove('hidden');
             }
         };
 
         function showMainApp() {
             document.getElementById('password-screen').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
-            lucide.createIcons();
             refreshUI();
         }
 
         function refreshUI() {
-            if (!state.authenticated) return;
             const stats = calcStats();
             document.getElementById('val-bac').textContent = stats.bac;
             document.getElementById('val-sober').textContent = stats.sober;
@@ -336,25 +319,30 @@
 
             const list = document.getElementById('history-list');
             list.innerHTML = state.drinks.length ? '' : '<div class="text-center py-10 glass-card text-slate-600 font-bold text-xs italic">記録がありません</div>';
-            state.drinks.slice(0, 5).forEach(d => {
+            
+            state.drinks.forEach(d => {
                 const alc = (d.vol * (d.abv / 100) * 0.8).toFixed(1);
-                list.innerHTML += `
-                    <div class="glass-card p-5 flex justify-between items-center animate-fade-in group">
-                        <div class="flex items-center gap-4">
-                            <div class="bg-slate-900 w-12 h-12 flex items-center justify-center rounded-2xl text-slate-500 group-hover:text-blue-400">
-                                <i data-lucide="glass-water" class="w-5 h-5"></i>
-                            </div>
-                            <div>
-                                <p class="font-bold text-slate-100">${d.name}</p>
-                                <p class="text-[9px] font-black text-slate-600 uppercase tracking-widest mt-0.5">${new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · ${d.abv}%</p>
-                            </div>
+                const item = document.createElement('div');
+                item.className = "glass-card p-5 flex justify-between items-center animate-fade-in group";
+                item.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="bg-slate-900 w-12 h-12 flex items-center justify-center rounded-2xl text-slate-500 group-hover:text-blue-400">
+                            <i data-lucide="glass-water" class="w-5 h-5"></i>
                         </div>
+                        <div>
+                            <p class="font-bold text-slate-100">${d.name}</p>
+                            <p class="text-[9px] font-black text-slate-600 uppercase mt-0.5">${new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · ${d.abv}%</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
                         <p class="text-xl font-black text-white tracking-tighter">${alc}g</p>
+                        <button onclick="deleteLog(${d.id})" class="text-rose-500 opacity-0 group-hover:opacity-100 transition-all p-2">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
                     </div>`;
+                list.appendChild(item);
             });
             lucide.createIcons();
-            document.getElementById('weight-input').value = state.profile.weight;
-            syncSettingsUI();
         }
 
         function calcStats() {
@@ -387,111 +375,84 @@
 
         window.addLog = (item) => {
             state.drinks.unshift({ ...item, id: Date.now(), timestamp: Date.now() });
+            saveAndRefresh();
+        };
+
+        window.deleteLog = (id) => {
+            state.drinks = state.drinks.filter(d => d.id !== id);
+            saveAndRefresh();
+        };
+
+        window.clearLogs = () => { 
+            if (confirm('全ての記録を削除しますか？')) { 
+                state.drinks = []; 
+                saveAndRefresh(); 
+            } 
+        };
+
+        function saveAndRefresh() {
             localStorage.setItem('alcare_logs_v3', JSON.stringify(state.drinks));
             refreshUI();
-        };
-
-        window.clearLogs = () => { if (confirm('記録を削除しますか？')) { state.drinks = []; localStorage.setItem('alcare_logs_v3', '[]'); refreshUI(); } };
-
-        window.triggerCamera = () => document.getElementById('photo-input').click();
-
-        window.processPhoto = async (e) => {
-            if (!process.env.API_KEY) return showError("システムエラー: APIキーが見つかりません。Vercelの環境変数設定を確認してください。");
-            const file = e.target.files[0];
-            if (!file) return;
-            showLoader(true);
-            try {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const reader = new FileReader();
-                const base64 = await new Promise(r => { reader.onload=()=>r(reader.result.split(',')[1]); reader.readAsDataURL(file); });
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
-                    contents: { parts: [{ inlineData: { data: base64, mimeType: file.type } }, { text: "画像からお酒の種類、度数、量を推測しJSONで回答。価格(price)も推測すること: {\"name\": \"名前\", \"abv\": 5.0, \"vol\": 350, \"price\": 500}" }] },
-                    config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, abv: { type: Type.NUMBER }, vol: { type: Type.NUMBER }, price: { type: Type.NUMBER } }, required: ["name", "abv", "vol", "price"] } }
-                });
-                addLog(JSON.parse(response.text));
-            } catch (err) { showError(`解析失敗: ${err.message}`); }
-            finally { showLoader(false); e.target.value = ''; }
-        };
+        }
 
         window.askAI = async () => {
-            if (!process.env.API_KEY) return showError("システムエラー: APIキーが見つかりません。Vercelの環境変数設定を確認してください。");
+            if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("ここに")) return showError("APIキーを設定してください");
             if (!state.drinks.length) return alert("記録を追加してください。");
-            const mainBtn = document.getElementById('main-ask-btn');
-            mainBtn.disabled = true;
+            
             showLoader(true);
             try {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                const genAI = new GoogleGenAI(GEMINI_API_KEY);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                 const s = calcStats();
                 const role = ROLES[state.profile.character];
-                const response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview',
-                    contents: `データ: BAC ${s.bac}%, 総アルコール ${s.grams}g, 累計支出 ¥${s.spend}。直近:${state.drinks.slice(0,3).map(d=>d.name).join(',')}。`,
-                    config: { 
-                        systemInstruction: role.prompt + "\n回答は以下のJSON形式のみで行ってください。\n{\"conclusion\": \"短い一言結論\", \"status\": \"NORMAL/CAUTION/DANGER\", \"advice\": \"詳細なアドバイス本文\", \"liver_load\": 0〜100の数値, \"dehydration\": \"NONE/LOW/MEDIUM/HIGH\"}",
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: Type.OBJECT,
-                            properties: {
-                                conclusion: { type: Type.STRING },
-                                status: { type: Type.STRING },
-                                advice: { type: Type.STRING },
-                                liver_load: { type: Type.NUMBER },
-                                dehydration: { type: Type.STRING }
-                            },
-                            required: ["conclusion", "status", "advice", "liver_load", "dehydration"]
-                        }
-                    }
-                });
-                updateAdviceUI(JSON.parse(response.text));
-            } catch (err) { showError(`AIエラー: ${err.message}`); }
-            finally { mainBtn.disabled = false; showLoader(false); }
+
+                const prompt = `${role.prompt}
+                データ: 血中濃度 ${s.bac}%, 純アルコール ${s.grams}g, 支出 ¥${s.spend}。
+                以下のJSON形式だけで答えてください:
+                {"conclusion": "一言結論", "status": "NORMAL/CAUTION/DANGER", "advice": "本文", "liver_load": 0, "dehydration": "LOW"}`;
+
+                const result = await model.generateContent(prompt);
+                const text = result.response.text();
+                const jsonText = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+                updateAdviceUI(JSON.parse(jsonText));
+            } catch (err) { 
+                showError("AIエラー: " + err.message); 
+            } finally { 
+                showLoader(false); 
+            }
         };
 
         function updateAdviceUI(data) {
             const roleKey = state.profile.character;
             const role = ROLES[roleKey];
-            const card = document.getElementById('character-card');
             document.body.className = `min-h-screen pb-12 theme-${roleKey}`;
-            card.style.background = `var(--bg-gradient)`;
-            document.getElementById('card-decor').innerHTML = role.decor;
-            const badge = document.getElementById('status-badge');
-            badge.className = `status-badge w-full py-4 px-6 rounded-3xl text-center font-black text-xl shadow-2xl text-white ${role.status_colors[data.status] || 'bg-slate-700'}`;
+            document.getElementById('character-card').style.background = `var(--bg-gradient)`;
+            document.getElementById('status-badge').className = `status-badge w-full py-4 px-6 rounded-3xl text-center font-black text-xl shadow-2xl text-white ${role.status_colors[data.status] || 'bg-slate-700'}`;
             document.getElementById('conclusion-text').textContent = data.conclusion;
-            document.getElementById('char-icon-container').textContent = role.icon;
-            document.getElementById('char-name').textContent = role.name;
-            document.getElementById('char-title').textContent = role.title;
             document.getElementById('advice-text').textContent = data.advice;
             document.getElementById('val-liver-load').textContent = data.liver_load;
             document.getElementById('bar-liver-load').style.width = `${data.liver_load}%`;
             document.getElementById('val-dehydration').textContent = data.dehydration;
+            document.getElementById('ai-section').classList.remove('hidden', 'scale-95', 'opacity-0');
             document.getElementById('conclusion-container').classList.remove('hidden');
-            document.getElementById('ai-section').classList.remove('hidden');
-            setTimeout(() => {
-                document.getElementById('ai-section').classList.remove('scale-95', 'opacity-0');
-                window.scrollTo({ top: 200, behavior: 'smooth' });
-            }, 100);
             lucide.createIcons();
         }
 
-        function openModal(id) { const m = document.getElementById(id); m.classList.add('opacity-100', 'pointer-events-auto'); m.querySelector('div').classList.remove('translate-y-20', 'scale-90'); }
-        window.closeModal = (id) => { const m = document.getElementById(id); m.classList.remove('opacity-100', 'pointer-events-auto'); m.querySelector('div').classList.add('translate-y-20', 'scale-90'); };
-        window.toggleSettings = () => { const m = document.getElementById('modal-settings'); if (m.classList.contains('opacity-100')) closeModal('modal-settings'); else openModal('modal-settings'); };
-        window.setProfile = (k, v) => { state.profile[k] = k === 'weight' ? Number(v) : v; localStorage.setItem('alcare_prof_v3', JSON.stringify(state.profile)); refreshUI(); };
+        // ユーティリティ
+        window.openModal = (id) => { document.getElementById(id).classList.add('opacity-100', 'pointer-events-auto'); };
+        window.closeModal = (id) => { document.getElementById(id).classList.remove('opacity-100', 'pointer-events-auto'); };
+        window.toggleSettings = () => { const m = document.getElementById('modal-settings'); m.classList.contains('opacity-100') ? closeModal('modal-settings') : openModal('modal-settings'); };
+        window.setProfile = (k, v) => { state.profile[k] = k === 'weight' ? Number(v) : v; localStorage.setItem('alcare_prof_v3', JSON.stringify(state.profile)); syncSettingsUI(); refreshUI(); };
         function syncSettingsUI() {
-            const isM = state.profile.gender === 'MALE';
-            document.getElementById('g-male').className = `py-4 rounded-2xl border-2 font-black transition-all ${isM ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'border-white/5 text-slate-500'}`;
-            document.getElementById('g-female').className = `py-4 rounded-2xl border-2 font-black transition-all ${!isM ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'border-white/5 text-slate-500'}`;
             const list = document.getElementById('role-list'); list.innerHTML = '';
             Object.entries(ROLES).forEach(([key, r]) => {
                 const active = state.profile.character === key;
-                list.innerHTML += `<button onclick="setProfile('character', '${key}')" class="w-full p-4 rounded-2xl border flex items-center gap-4 transition-all ${active ? 'bg-blue-600/20 border-blue-600/50' : 'bg-slate-950/50 border-white/5'}"><span class="text-2xl">${r.icon}</span><div class="text-left"><p class="font-black text-sm text-slate-100">${r.name}</p><p class="text-[9px] font-bold text-slate-600 uppercase tracking-widest">${r.title}</p></div></button>`;
+                list.innerHTML += `<button onclick="setProfile('character', '${key}')" class="w-full p-4 rounded-2xl border flex items-center gap-4 transition-all ${active ? 'bg-blue-600/20 border-blue-600/50' : 'bg-slate-950/50 border-white/5'}"><span class="text-2xl">${r.icon}</span><div class="text-left"><p class="font-black text-sm text-slate-100">${r.name}</p></div></button>`;
             });
         }
-        function showLoader(show) { const l = document.getElementById('global-loader'); l.classList.toggle('opacity-100', show); l.classList.toggle('pointer-events-auto', show); }
-        window.showError = (msg) => { const d = document.getElementById('error-display'); document.getElementById('error-message').textContent = msg; d.classList.remove('hidden'); setTimeout(hideError, 8000); };
-        window.hideError = () => document.getElementById('error-display').classList.add('hidden');
-        function initSettingsUI() { syncSettingsUI(); }
+        function showLoader(show) { document.getElementById('global-loader').classList.toggle('opacity-100', show); document.getElementById('global-loader').classList.toggle('pointer-events-auto', show); }
+        window.showError = (msg) => { document.getElementById('error-display').classList.remove('hidden'); document.getElementById('error-message').textContent = msg; };
+        window.hideError = () => { document.getElementById('error-display').classList.add('hidden'); };
     </script>
 </body>
 </html>
