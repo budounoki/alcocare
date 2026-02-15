@@ -70,15 +70,14 @@
         </div>
     </div>
 
-    <!-- エラー表示 -->
-    <div id="error-display" class="hidden fixed top-0 left-0 right-0 z-[110] bg-rose-600 p-4 text-white text-center font-bold text-sm shadow-2xl flex items-center justify-center gap-2">
+    <!-- エラー表示バナー -->
+    <div id="error-display" class="hidden fixed top-0 left-0 right-0 z-[400] bg-rose-600 p-4 text-white text-center font-bold text-sm shadow-2xl flex items-center justify-center gap-2">
         <i data-lucide="alert-circle" class="w-4 h-4"></i>
         <span id="error-message"></span>
         <button onclick="hideError()" class="ml-4 opacity-50 hover:opacity-100"><i data-lucide="x" class="w-4 h-4"></i></button>
     </div>
 
     <div id="main-app" class="max-w-md mx-auto p-5 space-y-6 pt-10 hidden">
-        
         <!-- ヘッダー -->
         <header class="flex justify-between items-center">
             <div class="flex items-center gap-4">
@@ -88,7 +87,7 @@
                 <div>
                     <h1 class="text-2xl font-black tracking-tighter text-white">AlcoCare AI</h1>
                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> ENGINE ONLINE
+                        <span id="api-status-dot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> ENGINE STATUS
                     </span>
                 </div>
             </div>
@@ -279,21 +278,34 @@
             }
         };
 
+        // 状態
         let state = {
             drinks: JSON.parse(localStorage.getItem('alcare_logs_v3') || '[]'),
             profile: JSON.parse(localStorage.getItem('alcare_prof_v3') || '{"gender":"MALE","weight":70,"character":"DOCTOR"}'),
             authenticated: sessionStorage.getItem('alcare_auth') === 'true'
         };
 
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+        // 初期化
         window.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             if (state.authenticated) showMainApp();
+            checkAPIKey();
             refreshUI();
             initSettingsUI();
         });
 
+        // APIキーの確認
+        function checkAPIKey() {
+            const dot = document.getElementById('api-status-dot');
+            if (process.env.API_KEY) {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]";
+            } else {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
+                console.error("API Key is missing from process.env.API_KEY");
+            }
+        }
+
+        // 認証
         window.checkAuth = () => {
             const input = document.getElementById('auth-input').value;
             const errorEl = document.getElementById('auth-error');
@@ -311,9 +323,11 @@
             document.getElementById('password-screen').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
             lucide.createIcons();
+            refreshUI();
         }
 
         function refreshUI() {
+            if (!state.authenticated) return;
             const stats = calcStats();
             document.getElementById('val-bac').textContent = stats.bac;
             document.getElementById('val-sober').textContent = stats.sober;
@@ -382,10 +396,12 @@
         window.triggerCamera = () => document.getElementById('photo-input').click();
 
         window.processPhoto = async (e) => {
+            if (!process.env.API_KEY) return showError("システムエラー: APIキーが見つかりません。Vercelの環境変数設定を確認してください。");
             const file = e.target.files[0];
             if (!file) return;
             showLoader(true);
             try {
+                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
                 const reader = new FileReader();
                 const base64 = await new Promise(r => { reader.onload=()=>r(reader.result.split(',')[1]); reader.readAsDataURL(file); });
                 const response = await ai.models.generateContent({
@@ -399,11 +415,13 @@
         };
 
         window.askAI = async () => {
+            if (!process.env.API_KEY) return showError("システムエラー: APIキーが見つかりません。Vercelの環境変数設定を確認してください。");
             if (!state.drinks.length) return alert("記録を追加してください。");
             const mainBtn = document.getElementById('main-ask-btn');
             mainBtn.disabled = true;
             showLoader(true);
             try {
+                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
                 const s = calcStats();
                 const role = ROLES[state.profile.character];
                 const response = await ai.models.generateContent({
