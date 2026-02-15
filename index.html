@@ -233,7 +233,6 @@
     <script type="module">
         import { GoogleGenAI } from "https://esm.sh/@google/genai@1.41.0";
 
-        // ★★★ここにあなたのGemini APIキーを貼り付けてください★★★
         const GEMINI_API_KEY = "AIzaSyBtlKNcuoi-moqCDyWyayxgkiwM8rBjsYs"; 
 
         const AUTH_PASS = "alco2026";
@@ -281,12 +280,12 @@
             if (state.authenticated) showMainApp();
             checkAPIStatus();
             refreshUI();
-            syncSettingsUI();　
+            syncSettingsUI();
         });
 
         function checkAPIStatus() {
             const dot = document.getElementById('api-status-dot');
-            if (GEMINI_API_KEY && GEMINI_API_KEY !== "ここにAPIキーを入れてください") {
+            if (GEMINI_API_KEY && GEMINI_API_KEY.startsWith("AIza")) {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]";
             } else {
                 dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]";
@@ -396,7 +395,7 @@
         }
 
         window.askAI = async () => {
-            if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("ここに")) return showError("APIキーを設定してください");
+            if (!GEMINI_API_KEY || !GEMINI_API_KEY.startsWith("AIza")) return showError("APIキーを設定してください");
             if (!state.drinks.length) return alert("記録を追加してください。");
             
             showLoader(true);
@@ -406,10 +405,7 @@
                 const s = calcStats();
                 const role = ROLES[state.profile.character];
 
-                const prompt = `${role.prompt}
-                データ: 血中濃度 ${s.bac}%, 純アルコール ${s.grams}g, 支出 ¥${s.spend}。
-                以下のJSON形式だけで答えてください:
-                {"conclusion": "一言結論", "status": "NORMAL/CAUTION/DANGER", "advice": "本文", "liver_load": 0, "dehydration": "LOW"}`;
+                const prompt = `${role.prompt} データ: 血中濃度 ${s.bac}%, 純アルコール ${s.grams}g, 支出 ¥${s.spend}。以下のJSON形式だけで答えてください: {"conclusion": "一言結論", "status": "NORMAL/CAUTION/DANGER", "advice": "本文", "liver_load": 0, "dehydration": "LOW"}`;
 
                 const result = await model.generateContent(prompt);
                 const text = result.response.text();
@@ -438,7 +434,6 @@
             lucide.createIcons();
         }
 
-        // ユーティリティ
         window.openModal = (id) => { document.getElementById(id).classList.add('opacity-100', 'pointer-events-auto'); };
         window.closeModal = (id) => { document.getElementById(id).classList.remove('opacity-100', 'pointer-events-auto'); };
         window.toggleSettings = () => { const m = document.getElementById('modal-settings'); m.classList.contains('opacity-100') ? closeModal('modal-settings') : openModal('modal-settings'); };
